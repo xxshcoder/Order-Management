@@ -49,3 +49,6 @@ crash.log
 
 # K8s rendered secrets
 deploy/k8s/*secret*.yaml.template.local
+
+# Internal build specification — kept locally, not published
+PLAN.md

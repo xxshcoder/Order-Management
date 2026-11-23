@@ -1,6 +1,6 @@
 # Blockers and Environment Limitations
 
-This file is maintained per `PLAN.md` §0.8: when blocked, log the issue, choose the simplest reasonable option, and continue.
+When blocked, log the issue, choose the simplest reasonable option, and continue.
 
 ## B-001 — Java 21 / Maven toolchain not installed (Phase 0)
 
@@ -25,7 +25,7 @@ This file is maintained per `PLAN.md` §0.8: when blocked, log the issue, choose
 ## B-004 — Terraform CLI not installed (Phase 5)
 
 - **Impact:** Cannot run `terraform fmt` or `terraform validate`.
-- **Decision taken:** Produce HCL that follows Terraform 1.8+ conventions and document validation commands. **No `terraform apply` will ever be run** (per `PLAN.md` §7 Phase 5 — requires explicit user credentials).
+- **Decision taken:** Produce HCL that follows Terraform 1.8+ conventions and document validation commands. **No `terraform apply` will ever be run** (requires explicit user credentials).
 - **Resolution required:** Install Terraform 1.8+ and run `terraform fmt -check` and `terraform validate`.
 
 ## B-005 — AWS credentials not provided (Phase 5)

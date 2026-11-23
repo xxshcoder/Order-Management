@@ -202,11 +202,10 @@ Each topic has **3 partitions** and a companion `<topic>.DLT` dead-letter topic.
 │   ├── elasticsearch/index-template.json
 │   └── kibana/saved-objects.ndjson
 ├── load-tests/                     # k6 scripts + results placeholder
-├── docs/
-│   ├── PROGRESS.md, BLOCKERS.md, DEMO.md
-│   ├── adr/ADR-001 … ADR-009
-│   └── screenshots/README.md       # Placeholders for real captures
-└── PLAN.md                         # Original build specification
+└── docs/
+    ├── PROGRESS.md, BLOCKERS.md, DEMO.md
+    ├── adr/ADR-001 … ADR-009
+    └── screenshots/README.md       # Placeholders for real captures
 ```
 
 Each service follows the same internal package structure: `config/`, `domain/`, `repository/`, `service/`, `messaging/`, `web/` (with `web/dto/`), plus `metrics/` where applicable.
@@ -814,7 +813,7 @@ Suggested next steps: OpenTelemetry tracing, circuit breakers around downstream 
 | `docker compose up -d`, health, `make up`, image builds | Docker absent — B-002 |
 | `kubectl apply --dry-run=client` / kubeconform | kubectl absent — B-003 |
 | `terraform fmt` / `terraform validate` | Terraform absent — B-004 |
-| `terraform apply` | No AWS credentials; explicitly forbidden by `PLAN.md` §7 — B-005 |
+| `terraform apply` | No AWS credentials; intentionally not run — B-005 |
 | Real p95/RPS, dashboards with data, Kibana screenshots, k6 results | No runnable stack — B-006 |
 
 On a machine with the toolchain, run `mvn -q verify`, then `make up`, then `docs/DEMO.md`, and replace the placeholders in [§13](#13-load-testing) and [`docs/screenshots/`](docs/screenshots/) with real results.
