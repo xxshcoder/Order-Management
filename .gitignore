@@ -1,0 +1,51 @@
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+*.jar
+*.war
+*.ear
+
+# Environment / secrets
+.env
+.env.local
+*.tfvars
+!*.tfvars.example
+backend.hcl
+!backend.hcl.example
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Test / coverage output
+load-tests/results/*
+!load-tests/results/.gitkeep
+coverage/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+crash.log
+
+# K8s rendered secrets
+deploy/k8s/*secret*.yaml.template.local
