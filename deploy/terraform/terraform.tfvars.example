@@ -1,0 +1,36 @@
+# Copy to terraform.tfvars and REPLACE every REPLACE_ME value.
+# Never commit terraform.tfvars - it contains credentials.
+
+aws_region    = "us-east-1"
+environment   = "dev"
+project_name  = "order-platform"
+vpc_cidr      = "10.20.0.0/20"
+az_count      = 2
+
+# Restrict to your own IP in real environments instead of 0.0.0.0/0.
+allowed_ingress_cidr = "0.0.0.0/0"
+
+orders_db_name     = "orders"
+orders_db_username = "orderuser"
+orders_db_password = "REPLACE_ME_LONG_RANDOM_PASSWORD"
+
+stock_db_name     = "stock"
+stock_db_username = "stockuser"
+stock_db_password = "REPLACE_ME_ANOTHER_LONG_RANDOM_PASSWORD"
+
+db_instance_class    = "db.t3.micro"
+db_allocated_storage = 20
+
+jwt_secret        = "REPLACE_ME_WITH_AT_LEAST_32_RANDOM_BYTES"
+customer_password = "REPLACE_ME"
+admin_password    = "REPLACE_ME"
+
+# Redis and Kafka are NOT provisioned by this Terraform configuration.
+# Point these at real endpoints (ElastiCache / MSK) or leave the defaults and
+# supply the values through your deployment overlay.
+redis_host             = "REPLACE_ME_REDIS_ENDPOINT"
+kafka_bootstrap_servers = "REPLACE_ME_BROKER_1:9092,REPLACE_ME_BROKER_2:9092"
+
+image_tag        = "latest"
+desired_count    = 1
+log_retention_days = 7

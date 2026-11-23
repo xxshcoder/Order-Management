@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: order-platform
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  # secrets.yaml is deliberately NOT listed here: it is a placeholder template.
+  # Create the real Secret out-of-band (see README.md) before applying.
+  - api-gateway-deployment.yaml
+  - order-service-deployment.yaml
+  - inventory-service-deployment.yaml
+  - notification-service-deployment.yaml
+  - api-gateway-service.yaml
+  - order-service-service.yaml
+  - inventory-service-service.yaml
+  - notification-service-service.yaml
+  - order-service-hpa.yaml
+  - inventory-service-hpa.yaml
+  - ingress.yaml
+
+# Example of image override for a real registry:
+# images:
+#   - name: orderplatform/api-gateway
+#     newName: <account>.dkr.ecr.<region>.amazonaws.com/order-platform/dev/api-gateway
+#     newTag: <git-sha>

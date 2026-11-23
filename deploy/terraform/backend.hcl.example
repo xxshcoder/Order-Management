@@ -1,0 +1,9 @@
+# Copy to backend.hcl and fill in real values. backend.hcl is git-ignored.
+# The S3 bucket and DynamoDB table must already exist (see README.md).
+# Use a unique bucket name - S3 bucket names are globally unique.
+
+bucket         = "orderplatform-terraform-state-REPLACE_WITH_ACCOUNT_ID"
+key            = "order-platform/dev/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "orderplatform-terraform-locks"
+encrypt        = true
