@@ -51,7 +51,7 @@ function obtainToken() {
   }
   const payload = JSON.stringify({
     username: __ENV.LOGIN_USER || 'customer1',
-    password: __ENV.LOGIN_PASSWORD || 'password',
+    password: __ENV.LOGIN_PASSWORD || 'customer123',
   });
   const response = http.post(`${BASE_URL}${LOGIN_PATH}`, payload, {
     headers: { 'Content-Type': 'application/json' },

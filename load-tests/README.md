@@ -13,7 +13,7 @@ gateway at `http://localhost:8080` unless `BASE_URL` is overridden.
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8080/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"customer1","password":"password"}' | jq -r .accessToken)
+  -d '{"username":"customer1","password":"customer123"}' | jq -r .accessToken)
 ```
 
 `jq` is only used above for convenience; any JSON parser works. The login
@@ -26,7 +26,7 @@ by the scripts.
 |---|---|---|---|
 | `BASE_URL` | `http://localhost:8080` | all | Gateway base URL |
 | `JWT` | (login) | all | Pre-obtained bearer token |
-| `LOGIN_USER` / `LOGIN_PASSWORD` | `customer1` / `password` | all | Demo login fallback |
+| `LOGIN_USER` / `LOGIN_PASSWORD` | `customer1` / `customer123` | all | Demo login fallback |
 | `LOGIN_PATH` | `/auth/login` | all | Login endpoint |
 | `CACHE_ENABLED` | `true` | products | `false` sends `X-Cache-Bypass` and tags results `cache=off` |
 | `PAGE` / `PAGE_SIZE` | `0` / `20` | products | Pagination parameters |
@@ -52,7 +52,7 @@ k6 run -e JWT="$TOKEN" -e CACHE_ENABLED=true \
   load-tests/products.js
 
 # Uncached product reads (also start inventory-service with
-# INVENTORY_CACHE_ENABLED=false for a true Redis-off comparison)
+# SPRING_CACHE_TYPE=none for a true Redis-off comparison)
 k6 run -e JWT="$TOKEN" -e CACHE_ENABLED=false \
   --summary-export=load-tests/results/products-uncached-summary.json \
   --out json=load-tests/results/products-uncached.json \

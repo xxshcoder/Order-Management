@@ -21,9 +21,9 @@ x-app-env: &app-env
   SPRING_DATA_REDIS_PORT: "6379"
   SPRING_PROFILES_ACTIVE: docker
   APP_CORRELATION_HEADER: X-Correlation-Id
-  JWT_SECRET: ${JWT_SECRET:-dev-only-jwt-secret-change-me-in-real-environments}
-  CUSTOMER_PASSWORD: ${CUSTOMER_PASSWORD:-customerpass}
-  ADMIN_PASSWORD: ${ADMIN_PASSWORD:-adminpass}
+  JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-please-32-bytes-minimum}
+  CUSTOMER_PASSWORD: ${CUSTOMER_PASSWORD:-customer123}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
   MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
   MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
   MANAGEMENT_METRICS_TAGS_APPLICATION: ${APP_NAME:-order-platform}
@@ -34,7 +34,7 @@ x-app-healthcheck: &app-healthcheck
   # Application images must provide wget or curl (see deploy/README.md).
   test:
     - CMD-SHELL
-    - 'wget -q --spider http://localhost:8080/actuator/health || curl -fsS http://localhost:8080/actuator/health >/dev/null || exit 1'
+    - 'wget -qO- http://localhost:8080/actuator/health >/dev/null || exit 1'
   interval: 15s
   timeout: 5s
   retries: 12
@@ -265,10 +265,10 @@ services:
       - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ../observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ../observability/alerts:/etc/prometheus/alerts:ro
+      - ../observability/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus-data:/prometheus
     healthcheck:
-      test: ["CMD-SHELL", 'wget -q --spider http://localhost:9090/-/healthy || curl -fsS http://localhost:9090/-/healthy >/dev/null || exit 1']
+      test: ["CMD-SHELL", 'wget -qO- http://localhost:9090/-/healthy >/dev/null || curl -fsS http://localhost:9090/-/healthy >/dev/null || exit 1']
       interval: 15s
       timeout: 5s
       retries: 10
@@ -289,13 +289,14 @@ services:
       - "${GRAFANA_PORT:-3000}:3000"
     volumes:
       - grafana-data:/var/lib/grafana
-      - ../observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../observability/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ../observability/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ../observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       prometheus:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", 'wget -q --spider http://localhost:3000/api/health || curl -fsS http://localhost:3000/api/health >/dev/null || exit 1']
+      test: ["CMD-SHELL", 'wget -qO- http://localhost:3000/api/health >/dev/null || curl -fsS http://localhost:3000/api/health >/dev/null || exit 1']
       interval: 15s
       timeout: 5s
       retries: 10

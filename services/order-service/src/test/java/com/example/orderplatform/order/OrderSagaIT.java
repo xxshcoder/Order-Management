@@ -39,7 +39,7 @@ class OrderSagaIT {
                     .withUsername("orderuser")
                     .withPassword("orderpass");
 
-    @Container static KafkaContainer kafka = new KafkaContainer("apache/kafka:3.7.0");
+    @Container static KafkaContainer kafka = new KafkaContainer();
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {

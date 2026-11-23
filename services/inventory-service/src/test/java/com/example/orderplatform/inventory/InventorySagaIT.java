@@ -48,7 +48,7 @@ class InventorySagaIT {
                     .withUsername("stockuser")
                     .withPassword("stockpass");
 
-    @Container static KafkaContainer kafka = new KafkaContainer("apache/kafka:3.7.0");
+    @Container static KafkaContainer kafka = new KafkaContainer();
 
     @Container static GenericContainer<?> redis =
             new GenericContainer<>("redis:7-alpine").withExposedPorts(6379);

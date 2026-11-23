@@ -5,7 +5,7 @@ COMPOSE := docker compose
 
 ## Start the whole platform (core + observability) in the background.
 up:
-	$(COMPOSE) --env-file .env -f deploy/docker-compose.yml up -d
+	$(COMPOSE) --env-file .env -f deploy/docker-compose.yml --profile observability up -d
 
 ## Start only infrastructure + services (no observability stack).
 up-core:

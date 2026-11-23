@@ -141,7 +141,8 @@ pipeline {
                     file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')
                 ]) {
                     script {
-                        sh 'kubectl apply -f deploy/k8s/ -n "$K8S_NAMESPACE"'
+                        // Use kustomize so the template-only Secret is not applied.
+                        sh 'kubectl apply -k deploy/k8s -n "$K8S_NAMESPACE"'
                         env.SERVICES.split(' ').each { service ->
                             withEnv(["SERVICE=${service}"]) {
                                 sh 'kubectl set image deployment/"$SERVICE" "$SERVICE=$REGISTRY/order-platform/$SERVICE:$IMAGE_TAG" -n "$K8S_NAMESPACE"'
