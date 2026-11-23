@@ -1,0 +1,40 @@
+# Grafana datasource provisioning.
+# Mount this directory at /etc/grafana/provisioning/datasources.
+
+apiVersion: 1
+
+deleteDatasources: []
+#  - name: Old Prometheus
+#    orgId: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      httpMethod: POST
+      timeInterval: 15s
+      prometheusType: Prometheus
+      prometheusVersion: '2.50.0'
+      cacheLevel: High
+
+  - name: Elasticsearch
+    type: elasticsearch
+    uid: elasticsearch
+    access: proxy
+    url: http://elasticsearch:9200
+    # Index pattern used by the Kibana/Discover workflows and log panels.
+    database: 'orderplatform-logs-*'
+    editable: false
+    jsonData:
+      esVersion: '8.13.0'
+      timeFieldName: '@timestamp'
+      timeInterval: 1s
+      logMessageField: message
+      logLevelField: level
+      indexType: date
+      maxConcurrentShardRequests: 5

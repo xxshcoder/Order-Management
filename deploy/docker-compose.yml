@@ -1,0 +1,387 @@
+# Order Management Platform - local development / demo stack.
+#
+# Default behaviour: `docker compose up -d` starts the CORE stack (infra + 4 apps).
+# The `core` profile name is accepted as an explicit alias and does not hide any
+# service: `docker compose --profile core up -d` is equivalent to the default.
+# Observability is opt-in: `docker compose --profile observability up -d`.
+# Start everything: `docker compose --profile core --profile observability up -d`.
+#
+# Variables are interpolated with safe development defaults. To use the repository
+# root .env file, run from this directory with `--env-file ../.env`, e.g.:
+#   docker compose --env-file ../.env --profile observability up -d
+#
+# This file expects the service Dockerfiles at ../services/<svc>/Dockerfile and
+# the observability configuration under ../observability/ (owned by another agent).
+
+name: order-platform
+
+x-app-env: &app-env
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  SPRING_DATA_REDIS_HOST: redis
+  SPRING_DATA_REDIS_PORT: "6379"
+  SPRING_PROFILES_ACTIVE: docker
+  APP_CORRELATION_HEADER: X-Correlation-Id
+  JWT_SECRET: ${JWT_SECRET:-dev-only-jwt-secret-change-me-in-real-environments}
+  CUSTOMER_PASSWORD: ${CUSTOMER_PASSWORD:-customerpass}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:-adminpass}
+  MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
+  MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+  MANAGEMENT_METRICS_TAGS_APPLICATION: ${APP_NAME:-order-platform}
+  LOGGING_LEVEL_ROOT: INFO
+  TZ: UTC
+
+x-app-healthcheck: &app-healthcheck
+  # Application images must provide wget or curl (see deploy/README.md).
+  test:
+    - CMD-SHELL
+    - 'wget -q --spider http://localhost:8080/actuator/health || curl -fsS http://localhost:8080/actuator/health >/dev/null || exit 1'
+  interval: 15s
+  timeout: 5s
+  retries: 12
+  start_period: 45s
+
+services:
+  # ---------------------------------------------------------------------------
+  # Infrastructure (core)
+  # ---------------------------------------------------------------------------
+  postgres-orders:
+    image: postgres:16-alpine
+    container_name: postgres-orders
+    environment:
+      POSTGRES_DB: ${POSTGRES_ORDERS_DB:-orders}
+      POSTGRES_USER: ${POSTGRES_ORDERS_USER:-orderuser}
+      POSTGRES_PASSWORD: ${POSTGRES_ORDERS_PASSWORD:-orderpass}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_ORDERS_PORT:-5432}:5432"
+    volumes:
+      - postgres-orders-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks: [order-platform]
+
+  postgres-stock:
+    image: postgres:16-alpine
+    container_name: postgres-stock
+    environment:
+      POSTGRES_DB: ${POSTGRES_STOCK_DB:-stock}
+      POSTGRES_USER: ${POSTGRES_STOCK_USER:-stockuser}
+      POSTGRES_PASSWORD: ${POSTGRES_STOCK_PASSWORD:-stockpass}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_STOCK_PORT:-5433}:5432"
+    volumes:
+      - postgres-stock-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks: [order-platform]
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", 'redis-cli ping | grep -q PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    networks: [order-platform]
+
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: kafka
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    ports:
+      - "${KAFKA_HOST_PORT:-29092}:29092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - '/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1 || exit 1'
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 20s
+    restart: unless-stopped
+    networks: [order-platform]
+
+  kafka-init:
+    image: apache/kafka:3.7.0
+    container_name: kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      TOPIC_PARTITIONS: "3"
+      TOPIC_REPLICATION_FACTOR: "1"
+    entrypoint: ["/bin/sh", "/scripts/kafka-topics.sh"]
+    volumes:
+      - ./init/kafka-topics.sh:/scripts/kafka-topics.sh:ro
+    restart: "no"
+    networks: [order-platform]
+
+  # ---------------------------------------------------------------------------
+  # Applications (core)
+  # ---------------------------------------------------------------------------
+  api-gateway:
+    build:
+      context: ../..
+      dockerfile: services/api-gateway/Dockerfile
+    image: orderplatform/api-gateway:latest
+    container_name: api-gateway
+    environment:
+      <<: *app-env
+      SERVER_PORT: "8080"
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck: *app-healthcheck
+    restart: unless-stopped
+    networks: [order-platform]
+
+  order-service:
+    build:
+      context: ../..
+      dockerfile: services/order-service/Dockerfile
+    image: orderplatform/order-service:latest
+    container_name: order-service
+    environment:
+      <<: *app-env
+      SERVER_PORT: "8081"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-orders:5432/${POSTGRES_ORDERS_DB:-orders}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_ORDERS_USER:-orderuser}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_ORDERS_PASSWORD:-orderpass}
+    ports:
+      - "${ORDER_SERVICE_PORT:-8081}:8081"
+    depends_on:
+      postgres-orders:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck: *app-healthcheck
+    restart: unless-stopped
+    networks: [order-platform]
+
+  inventory-service:
+    build:
+      context: ../..
+      dockerfile: services/inventory-service/Dockerfile
+    image: orderplatform/inventory-service:latest
+    container_name: inventory-service
+    environment:
+      <<: *app-env
+      SERVER_PORT: "8082"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-stock:5432/${POSTGRES_STOCK_DB:-stock}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_STOCK_USER:-stockuser}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_STOCK_PASSWORD:-stockpass}
+    ports:
+      - "${INVENTORY_SERVICE_PORT:-8082}:8082"
+    depends_on:
+      postgres-stock:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck: *app-healthcheck
+    restart: unless-stopped
+    networks: [order-platform]
+
+  notification-service:
+    build:
+      context: ../..
+      dockerfile: services/notification-service/Dockerfile
+    image: orderplatform/notification-service:latest
+    container_name: notification-service
+    environment:
+      <<: *app-env
+      SERVER_PORT: "8083"
+    ports:
+      - "${NOTIFICATION_SERVICE_PORT:-8083}:8083"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck: *app-healthcheck
+    restart: unless-stopped
+    networks: [order-platform]
+
+  # ---------------------------------------------------------------------------
+  # Observability (opt-in profile, does not affect the default core stack)
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: prometheus
+    profiles: ["observability"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ../observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../observability/alerts:/etc/prometheus/alerts:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD-SHELL", 'wget -q --spider http://localhost:9090/-/healthy || curl -fsS http://localhost:9090/-/healthy >/dev/null || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks: [order-platform]
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: grafana
+    profiles: ["observability"]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: http://localhost:${GRAFANA_PORT:-3000}
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", 'wget -q --spider http://localhost:3000/api/health || curl -fsS http://localhost:3000/api/health >/dev/null || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+    networks: [order-platform]
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: elasticsearch
+    profiles: ["observability"]
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.security.http.ssl.enabled: "false"
+      xpack.security.transport.ssl.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", 'curl -fsS http://localhost:9200/_cluster/health >/dev/null || exit 1']
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 40s
+    restart: unless-stopped
+    networks: [order-platform]
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.13.4
+    container_name: logstash
+    profiles: ["observability"]
+    environment:
+      LS_JAVA_OPTS: -Xms256m -Xmx256m
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "${LOGSTASH_PORT:-5044}:5044"
+    volumes:
+      - ../observability/logstash/pipeline:/usr/share/logstash/pipeline:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", 'curl -fsS http://localhost:9600/_node/stats >/dev/null || exit 1']
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks: [order-platform]
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.4
+    container_name: kibana
+    profiles: ["observability"]
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "${KIBANA_PORT:-5601}:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", 'curl -fsS http://localhost:5601/api/status >/dev/null || exit 1']
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 40s
+    restart: unless-stopped
+    networks: [order-platform]
+
+volumes:
+  postgres-orders-data:
+  postgres-stock-data:
+  redis-data:
+  kafka-data:
+  prometheus-data:
+  grafana-data:
+  elasticsearch-data:
+
+networks:
+  order-platform:
+    driver: bridge

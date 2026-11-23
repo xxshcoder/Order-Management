@@ -1,0 +1,30 @@
+# Non-secret runtime configuration for all four applications.
+# If databases / Redis / Kafka are external to the cluster (RDS, ElastiCache,
+# MSK), replace the endpoint values below (or overlay this ConfigMap) with the
+# endpoints emitted by Terraform. Credentials always live in secrets.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: order-platform-config
+  namespace: order-platform
+  labels:
+    app.kubernetes.io/part-of: order-platform
+data:
+  SPRING_PROFILES_ACTIVE: "k8s"
+  # Kafka / Redis are externalised: only these keys are used by the apps.
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  SPRING_DATA_REDIS_HOST: "redis"
+  SPRING_DATA_REDIS_PORT: "6379"
+  APP_CORRELATION_HEADER: "X-Correlation-Id"
+
+  # Spring Boot Actuator: exposes liveness/readiness and Prometheus scrape endpoint.
+  MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,info,prometheus,metrics"
+  MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+  MANAGEMENT_METRICS_TAGS_APPLICATION: "order-platform"
+
+  # JDBC URLs are non-secret. Each service selects only its own key.
+  ORDERS_DB_URL: "jdbc:postgresql://postgres-orders.order-platform.svc.cluster.local:5432/orders"
+  STOCK_DB_URL: "jdbc:postgresql://postgres-stock.order-platform.svc.cluster.local:5432/stock"
+
+  # Small heaps for the default 512 Mi containers; override per environment.
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60 -Xss512k -Djava.security.egd=file:/dev/./urandom"

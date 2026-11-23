@@ -1,0 +1,8 @@
+# Minimal Kibana configuration for the local Compose stack.
+# Mount at /usr/share/kibana/config/kibana.yml.
+
+server.name: kibana
+server.host: "0.0.0.0"
+server.port: 5601
+elasticsearch.hosts: ["http://elasticsearch:9200"]
+i18n.locale: en-US

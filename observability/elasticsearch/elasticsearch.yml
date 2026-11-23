@@ -1,0 +1,17 @@
+# Minimal single-node Elasticsearch configuration for local development.
+# Mount at /usr/share/elasticsearch/config/elasticsearch.yml.
+
+cluster.name: orderplatform-logs
+node.name: elasticsearch
+network.host: 0.0.0.0
+http.port: 9200
+discovery.type: single-node
+
+# Development only. Do NOT use these settings outside the local Compose stack.
+xpack.security.enabled: false
+xpack.security.http.ssl.enabled: false
+xpack.security.transport.ssl.enabled: false
+
+# Keep the local stack small.
+indices.query.bool.max_clause_count: 4096
+action.destructive_requires_name: true

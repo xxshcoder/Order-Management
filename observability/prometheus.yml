@@ -1,0 +1,84 @@
+# Prometheus configuration for the Order Management platform.
+#
+# Mount this file into the Prometheus container at /etc/prometheus/prometheus.yml
+# and the alert rules file at /etc/prometheus/alerts.yml:
+#
+#   ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+#   ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+#
+# Service DNS names below are the Compose service names; all services expose
+# Spring Boot Actuator on /actuator/prometheus.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    environment: local
+    platform: order-management
+
+# Alert rule definitions are loaded from the companion file.
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+# Prometheus still evaluates rule_files when no Alertmanager is present.
+# DNS service discovery means an absent alertmanager container is harmless
+# (no targets => no connection errors); add an alertmanager service on 9093
+# to start receiving notifications.
+alerting:
+  alertmanagers:
+    - dns_sd_configs:
+        - names: ['alertmanager']
+          type: A
+          port: 9093
+
+scrape_configs:
+  # Self-monitoring.
+  - job_name: prometheus
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['prometheus:9090']
+        labels:
+          service: prometheus
+
+  # ---- Spring Boot services (Actuator /actuator/prometheus) ----
+  - job_name: api-gateway
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['api-gateway:8080']
+        labels:
+          service: api-gateway
+
+  - job_name: order-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['order-service:8081']
+        labels:
+          service: order-service
+
+  - job_name: inventory-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['inventory-service:8082']
+        labels:
+          service: inventory-service
+
+  - job_name: notification-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['notification-service:8083']
+        labels:
+          service: notification-service
+
+  # ---- Optional broker metrics ----
+  # Kafka client metrics (consumer lag, etc.) are already exposed by the
+  # Spring Boot Kafka Micrometer binder through each service's actuator.
+  # Uncomment the job below if a kafka-jmx-exporter container is added to
+  # the Compose stack (it typically listens on 9999).
+  #
+  # - job_name: kafka-jmx-exporter
+  #   metrics_path: /metrics
+  #   static_configs:
+  #     - targets: ['kafka-jmx-exporter:9999']
+  #       labels:
+  #         service: kafka

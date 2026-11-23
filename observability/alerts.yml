@@ -1,0 +1,104 @@
+# Prometheus alert rules for the Order Management platform.
+# Loaded by prometheus.yml via rule_files: /etc/prometheus/alerts.yml
+#
+# Custom Micrometer metric names (dots become underscores in Prometheus):
+#   orders.created.total      -> orders_created_total
+#   orders.confirmed.total    -> orders_confirmed_total
+#   orders.cancelled.total    -> orders_cancelled_total
+#   reservations.failed.total -> reservations_failed_total
+#   outbox.backlog            -> outbox_backlog
+#   cache.hits.total          -> cache_hits_total
+#   cache.misses.total        -> cache_misses_total
+
+groups:
+  - name: order-platform.http
+    interval: 15s
+    rules:
+      # Required rule: HTTP error rate above 5% sustained for five minutes.
+      - alert: HighHttpErrorRate
+        expr: |
+          (
+            sum by (job) (rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+            /
+            clamp_min(sum by (job) (rate(http_server_requests_seconds_count[5m])), 0.001)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: 'HTTP error rate above 5% on {{ $labels.job }}'
+          description: 'More than 5% of HTTP requests to {{ $labels.job }} returned 5xx over the last 5 minutes (current: {{ $value | humanizePercentage }}).'
+          dashboard_url: 'http://localhost:3000/d/orderplatform-overview/order-platform-overview'
+
+      - alert: ServiceDown
+        expr: up{job=~"api-gateway|order-service|inventory-service|notification-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: '{{ $labels.job }} is down'
+          description: 'Prometheus has been unable to scrape {{ $labels.job }} ({{ $labels.instance }}) for more than one minute.'
+
+  - name: order-platform.reliability
+    interval: 15s
+    rules:
+      - alert: OutboxBacklogGrowing
+        expr: max by (job) (outbox_backlog) > 100
+        for: 10m
+        labels:
+          severity: warning
+          category: reliability
+        annotations:
+          summary: 'Transactional outbox backlog growing on {{ $labels.job }}'
+          description: 'The outbox backlog has exceeded 100 unpublished events for 10 minutes (current: {{ $value }}). Check Kafka connectivity and the scheduled outbox publisher.'
+
+      - alert: OutboxBacklogCritical
+        expr: max by (job) (outbox_backlog) > 1000
+        for: 5m
+        labels:
+          severity: critical
+          category: reliability
+        annotations:
+          summary: 'Transactional outbox backlog critical on {{ $labels.job }}'
+          description: 'The outbox backlog has exceeded 1000 unpublished events (current: {{ $value }}). Orders may remain PENDING.'
+
+      # Covers both the Micrometer Kafka client binder and the optional
+      # kafka-jmx-exporter metric name for consumer lag.
+      - alert: KafkaConsumerLagHigh
+        expr: |
+          max by (job, topic) (kafka_consumer_fetch_manager_records_lag) > 1000
+          or
+          max by (job, topic) (kafka_consumergroup_lag) > 1000
+        for: 10m
+        labels:
+          severity: warning
+          category: messaging
+        annotations:
+          summary: 'Kafka consumer lag on {{ $labels.job }} / {{ $labels.topic }}'
+          description: 'Consumer lag on topic {{ $labels.topic }} has been above 1000 records for 10 minutes (current: {{ $value }}). Inspect consumers and the DLT topics.'
+
+      - alert: ReservationFailureSpike
+        expr: sum by (job) (rate(reservations_failed_total[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: 'Elevated stock reservation failures on {{ $labels.job }}'
+          description: 'More than one failed stock reservation per second over 5 minutes (current: {{ $value }}). Check stock levels and reservation logic.'
+
+      - alert: OrderThroughputCollapsed
+        expr: |
+          sum(rate(orders_created_total[5m]))
+          < 0.01
+          and
+          sum(increase(orders_created_total[1h])) > 0
+        for: 10m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: 'Order creation has stalled'
+          description: 'No new orders have been created for 10 minutes while orders were seen earlier in the hour. Check the gateway and order service.'

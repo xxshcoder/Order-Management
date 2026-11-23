@@ -1,0 +1,13 @@
+# Minimal Logstash settings.
+# Mount at /usr/share/logstash/config/logstash.yml in the Logstash container.
+
+http.host: "0.0.0.0"
+http.port: 9600
+path.config: /usr/share/logstash/pipeline
+pipeline.workers: 2
+pipeline.batch.size: 125
+pipeline.batch.delay: 50
+config.reload.automatic: true
+config.reload.interval: 3s
+log.level: info
+log.format: json
