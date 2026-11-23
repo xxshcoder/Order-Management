@@ -34,7 +34,8 @@ The local environment lacks Java/Maven/Docker/kubectl/Terraform/k6 (see `docs/BL
 - [x] Gateway: routes, JWT validation, ADMIN role checks, correlation ID generation/propagation, Redis rate limiter
 - [x] Services re-validate JWT locally (ADR-008); `dev` profile for local exploration
 - [x] Redis `@Cacheable` product reads (TTL 300s), evict on create/stock update; Micrometer cache/outbox metrics
-- [x] Testcontainers integration tests: order happy path, rejection, replay, idempotent creation, stock concurrency
+- [x] Testcontainers integration tests: order happy path, rejection, replay, idempotent creation, stock concurrency, Redis cache eviction
+- [x] Gateway security tests: 401 anonymous, 403 CUSTOMER on ADMIN route, 200 for ADMIN
 - [x] Kill-Kafka scenario documented as an executable script in `docs/DEMO.md`
 - [ ] **Check:** kill-Kafka recovery — **NOT VERIFIED (B-002)**
 

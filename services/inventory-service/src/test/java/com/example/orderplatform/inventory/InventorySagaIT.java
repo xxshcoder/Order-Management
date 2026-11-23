@@ -9,13 +9,16 @@ import com.example.orderplatform.inventory.messaging.Topics;
 import com.example.orderplatform.inventory.repository.ProductRepository;
 import com.example.orderplatform.inventory.repository.ReservationRepository;
 import com.example.orderplatform.inventory.repository.StockRepository;
+import com.example.orderplatform.inventory.service.InventoryService;
 import com.example.orderplatform.inventory.service.StockReservationService;
+import com.example.orderplatform.inventory.web.dto.ProductResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -66,6 +69,8 @@ class InventorySagaIT {
     }
 
     @Autowired private StockReservationService reservationService;
+    @Autowired private InventoryService inventoryService;
+    @Autowired private RedisConnectionFactory redisConnectionFactory;
     @Autowired private ProductRepository productRepository;
     @Autowired private StockRepository stockRepository;
     @Autowired private ReservationRepository reservationRepository;
@@ -128,6 +133,26 @@ class InventorySagaIT {
                 .filter(r -> productId.equals(r.getProductId()))
                 .filter(r -> r.getStatus() == ReservationStatus.RESERVED)
                 .count()).isEqualTo(10);
+    }
+
+    @Test
+    void productReadsAreCachedAndEvictedAfterStockUpdate() throws Exception {
+        byte[] key = ("products::" + productId).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+        ProductResponse first = inventoryService.getProduct(productId);
+        ProductResponse second = inventoryService.getProduct(productId);
+        assertThat(first.available()).isEqualTo(second.available());
+
+        try (var connection = redisConnectionFactory.getConnection()) {
+            assertThat(connection.keyCommands().exists(key)).isEqualTo(1L);
+        }
+
+        inventoryService.updateStock(productId, 42);
+
+        try (var connection = redisConnectionFactory.getConnection()) {
+            assertThat(connection.keyCommands().exists(key)).isEqualTo(0L);
+        }
+        assertThat(inventoryService.getProduct(productId).available()).isEqualTo(42);
     }
 
     @Test
